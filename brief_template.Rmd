@@ -1,0 +1,211 @@
+---
+title: "Briefing DV capstone"
+author: "Muhammad Hanan Rafif Farizta"
+date: "`r Sys.Date()`"
+output:
+  pdf_document:
+    toc: yes
+  html_document:
+    toc: yes
+    toc_float: yes
+    highlight: zenburn
+    df_print: paged
+    theme: flatly
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+File ini berisi template untuk mejawab pertanyaan 5W+1H saat briefing Capstone Data Visualization sebagai langkah awal sebelum membuat Dashboard. Silakan Bapak/Ibu mengisi jawaban di bawah. 
+
+File ini tidak akan dinilai namun Bapak/Ibu **WAJIB** disubmit ke dalam classroom pada hari H briefing Capstone Data Visualization.
+
+# What
+
+Tentukan tujuan atau informasi yang ingin ditampilkan dalam dashboard
+
+**Jawab**
+
+Tujuan yang ingin dicapai atau informasi yang ingin disampaikan:
+
+- Visualisasi ini dibuat untuk mengetahui karakter biji kopi yang telah diperdagangkan dari berbagai negara di dunia
+- Coffee Character dari berbagai negara
+- Beans Data
+- Overview dari Coffee Beans Trading Ratings
+
+# Who
+
+Untuk siapa dashboard ini dibuat? Siapa target pembaca dari dashboard ini?
+
+**Jawab**
+
+Bagi para pengekspor kopi dan penjual biji kopi
+
+# Why
+
+Apakah data yang dibuat relevan atau sesuai dengan tujuan? Mengapa?
+
+**Jawab**
+
+Relevan. Karena dari data ini kita dapat mengetahui jenis-jenis biji kopi yang diperdagangkan di dunia beserta karakternya
+
+# When
+
+Apakah data yang digunakan masih *up to date* atau masih relevan dengan kondisi sekarang? Apakah ada informasi tentang tanggal update terakhir dari data tersebut?
+
+**Jawab**
+
+Untuk data terakhir diupdate itu tahun 2018. Tetapi menurut saya ini masih relevan untuk dapat diambil insightnya.
+
+
+# How
+
+Bagaimana Bapak/Ibu menggunakan visualisasi untuk menjawab tujuan yang telah disebutkan? 
+
+Buat plot yang akan dimasukkan ke dalam dashboard. Boleh dalam bentuk `ggplot` maupun `plotly`.
+
+**Jawab**
+
+Plot untuk menjawab tujuan pertama
+```{r}
+cof_flav <- coffee_ratings %>%
+  filter(country_of_origin == "Brazil") %>%
+  select(aroma:cupper_points) %>%
+  tidyr::gather(key, value) %>%
+  dplyr::group_by(key) %>%
+  dplyr::summarise(value = mean(value)) %>%
+  dplyr::ungroup() %>%
+  dplyr::mutate(key = stringr::str_replace(key, "_", " ") %>% stringr::str_to_title()) %>%
+  dplyr::mutate(key = forcats::fct_reorder(key, value))
+
+plot_flav <- cof_flav %>%
+  ggplot(aes(x = key, y = value, color = key)) +
+  geom_point(size = 5) +
+  geom_segment(aes(x = key, xend = key, y = value, yend = 0)) +
+  theme(legend.position = "none") +
+  ylab("") +
+  xlab("") +
+  coord_flip() +
+  labs(title = "Avg Flavour Profile")
+
+plot_flav
+```
+
+Plot kedua
+```{r}
+cof_var <- coffee_ratings %>%
+  filter(country_of_origin == "Brazil") %>%
+  select(variety) %>%
+  tidyr::drop_na() %>%
+  dplyr::count(variety) %>%
+  dplyr::mutate(variety = forcats::fct_reorder(variety, n))
+
+plot_var <- cof_var %>%
+  ggplot(aes(x = n, y = variety, fill = variety)) +
+  geom_col() +
+  ylab("") +
+  labs(title = "Bean Variety") +
+  theme(legend.position = "none")
+
+plot_var
+
+```
+
+Plot ketiga
+```{r}
+cof_dif <- coffee_ratings %>%
+  select(country_of_origin, aroma:cupper_points) %>%
+  dplyr::mutate(highlight = if_else(country_of_origin == "Brazil", "Highlight", "No-Highlight")) %>%
+  dplyr::select(-country_of_origin) %>%
+  tidyr::gather(key = "key", value = "value", -highlight) %>%
+  dplyr::group_by(key) %>%
+  dplyr::do(t_test = t.test(value ~ highlight, data = .) %>% broom::tidy()) %>%
+  tidyr::unnest(t_test) %>%
+  dplyr::mutate(difference = case_when(
+    conf.low < 0 & conf.high < 0 ~ "Different",
+    conf.low > 0 & conf.high > 0 ~ "Different",
+    TRUE ~ "Not-Different"
+  )) %>%
+  dplyr::mutate(key = stringr::str_replace(key, "_", " ") %>% stringr::str_to_title()) %>%
+  dplyr::mutate(key = forcats::fct_reorder(key, -estimate))
+
+plot_dif <- cof_dif %>%
+  ggplot(aes(x = key, y = estimate, color = difference)) +
+  geom_pointrange(aes(ymin = conf.low, ymax = conf.high)) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  coord_flip() +
+  theme(legend.position = "none") +
+  xlab("") +
+  labs(title = "How different are the flavour profiles?")
+
+plot_dif
+
+```
+
+Buat chunk baru apabila ada lebih dari 3 plot.
+
+# Where
+
+Bagaimana desain layout atau tata letak dashboard yang akan dibuat?
+
+**Jawab**
+
+Tab atau halaman pertama
+
+- Tab pertama yaitu overview dimana menampilkan Data Source dan Mean Bags Traded
+- Codenya:
+```{r}
+tabItem(
+      tabName = "Int",
+      h2("Coffee Beans Trading Ratings", align = "center"), 
+      fluidRow(valueBox(nrow(cof_clean), 
+                        "Data Source", 
+                        icon = icon("archive"), 
+                        color = "navy"),
+               valueBox(round(mean(cof_clean$number_of_bags),2), 
+                        "Mean Bags Traded", 
+                        icon = icon("cart-plus"),
+                        color = "navy")),
+      h2 ("This visualization was made to acknowledge the coffee beans character that have been traded from several country in the world")
+      ),
+```
+
+Tab atau halaman kedua
+
+- Tab kedua itu Coffee Character yang berisi Avg Flavour Profile, Bean Variety, Different of flavour profiles, and the data
+- Codenya:
+```{r}
+tabItem(
+      tabName = "cof",
+      
+      
+      fluidRow(box(plotlyOutput(outputId = "coffee_flavour")),
+               box(plotlyOutput(outputId = "coffee_variety"))),
+      
+      fluidRow(box(plotlyOutput(outputId = "coffee_dif")),
+               box(dataTableOutput(outputId = "coffee_table")))
+          ),
+```
+
+Tab atau halaman ketiga
+
+- Tab ketiga itu Beans Data yang merupakan dataset dari beans tersebut
+- Codenya:
+```{r}
+tabItem(
+      tabName = "beans",
+        dataTableOutput(outputId = "cof_rate"))
+```
+
+Tab atau halaman keempat
+- Tab ketiga itu Country yang merupakan dropdown yang bisa dipilih untuk menentukan Coffe Character pada Tab kedua
+- Codenya:
+```{r}
+selectInput("v_country", "Country", choices = coffee_ratings %>% 
+                  select(country_of_origin) %>% 
+                  distinct() %>% 
+                  arrange(country_of_origin) %>% 
+                  drop_na())
+```
+
